@@ -79,6 +79,13 @@ bool    mHdmiCableInserted;
 #include "SecHdmi.h"
 #endif
 
+// true : HDMI cable is pluged in, false: HDMI cable is plugged out
+bool    mHdmiCableInserted;
+
+#ifdef SAMSUNG_HDMI_SUPPORT
+#include "SecHdmi.h"
+#endif
+
 #define EGL_VERSION_HW_ANDROID  0x3143
 
 #define DISPLAY_COUNT       1
