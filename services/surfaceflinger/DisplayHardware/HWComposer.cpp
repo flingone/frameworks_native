@@ -68,25 +68,15 @@ typedef hwc_composer_device_1_t hwc_composer_device_t;
 // versions. Don't use it for the initial "does HWC meet requirements" check!
 
 #define MIN_HWC_HEADER_VERSION 0
-
+#define MIN_HWC_HEADER_VERSION HWC_HEADER_VERSION
 
 static uint32_t hwcApiVersion(const hwc_composer_device_1_t* hwc) {
     uint32_t hwcVersion = hwc->common.version;
-    if (MIN_HWC_HEADER_VERSION == 0 &&
-            (hwcVersion & HARDWARE_API_VERSION_2_MAJ_MIN_MASK) == 0) {
-        // legacy version encoding
-        hwcVersion <<= 16;
-    }
     return hwcVersion & HARDWARE_API_VERSION_2_MAJ_MIN_MASK;
 }
 
 static uint32_t hwcHeaderVersion(const hwc_composer_device_1_t* hwc) {
     uint32_t hwcVersion = hwc->common.version;
-    if (MIN_HWC_HEADER_VERSION == 0 &&
-            (hwcVersion & HARDWARE_API_VERSION_2_MAJ_MIN_MASK) == 0) {
-        // legacy version encoding
-        hwcVersion <<= 16;
-    }
     return hwcVersion & HARDWARE_API_VERSION_2_HEADER_MASK;
 }
 

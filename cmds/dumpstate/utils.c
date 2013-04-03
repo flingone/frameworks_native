@@ -228,6 +228,9 @@ int run_command(const char *title, int timeout_seconds, const char *command, ...
         /* make sure the child dies when dumpstate dies */
         prctl(PR_SET_PDEATHSIG, SIGKILL);
 
+        /* make sure the child dies when dumpstate dies */
+        prctl(PR_SET_PDEATHSIG, SIGKILL);
+
         va_list ap;
         va_start(ap, command);
         if (title) printf("------ %s (%s", title, command);
