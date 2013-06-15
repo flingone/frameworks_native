@@ -38,10 +38,6 @@ ifeq ($(TARGET_DISABLE_TRIPLE_BUFFERING),true)
 	LOCAL_CFLAGS += -DTARGET_DISABLE_TRIPLE_BUFFERING
 endif
 
-ifeq ($(BOARD_EGL_NEEDS_LEGACY_FB),true)
-	LOCAL_CFLAGS += -DBOARD_EGL_NEEDS_LEGACY_FB
-endif
-
 ifneq ($(NUM_FRAMEBUFFER_SURFACE_BUFFERS),)
   LOCAL_CFLAGS += -DNUM_FRAMEBUFFER_SURFACE_BUFFERS=$(NUM_FRAMEBUFFER_SURFACE_BUFFERS)
 endif
@@ -51,7 +47,7 @@ ifeq ($(BOARD_HAVE_HDMI_SUPPORT),SAMSUNG_HDMI_SUPPORT)
 endif
 
 # HWComposer.cpp contains 2 pretty bad aliasing violations
-LOCAL_CFLAGS += -fstrict-aliasing -marm -Wno-error=strict-aliasing
+LOCAL_CFLAGS += -Wno-error=strict-aliasing
 
 LOCAL_SHARED_LIBRARIES := \
 	libcutils \
