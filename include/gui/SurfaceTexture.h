@@ -68,7 +68,7 @@ public:
     // purely to allow a SurfaceTexture to be transferred from one consumer
     // context to another. If such a transfer is not needed there is no
     // requirement that either of these methods be called.
-    SurfaceTexture(GLuint tex, bool allowSynchronousMode = true,
+    SurfaceTexture(GLuint tex, bool allowSynchronousMode = false,
             GLenum texTarget = GL_TEXTURE_EXTERNAL_OES, bool useFenceSync = true,
             const sp<BufferQueue> &bufferQueue = 0);
 
@@ -81,6 +81,8 @@ public:
     // After calling this method the doGLFenceWait method must be called
     // before issuing OpenGL ES commands that access the texture contents.
     status_t updateTexImage();
+
+    status_t ReleaseOldBuffer();    //rk : for lcdc composer
 
     // setReleaseFence stores a fence file descriptor that will signal when the
     // current buffer is no longer being read. This fence will be returned to
@@ -211,6 +213,9 @@ public:
     // current at the time of the last call to detachFromContext.
     status_t attachToContext(GLuint tex);
 
+#ifdef TARGET_RK30
+    int  getBufferState(uint32_t  addr);
+#endif
 protected:
 
     // abandonLocked overrides the ConsumerBase method to clear
@@ -386,6 +391,7 @@ private:
     // that no buffer is bound to the texture. A call to setBufferCount will
     // reset mCurrentTexture to INVALID_BUFFER_SLOT.
     int mCurrentTexture;
+    int mCurrentTextureOld;     //rk : for lcdc composer
 
     // mAttached indicates whether the ConsumerBase is currently attached to
     // an OpenGL ES context.  For legacy reasons, this is initialized to true,

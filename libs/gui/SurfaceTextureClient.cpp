@@ -22,6 +22,7 @@
 
 #include <utils/Log.h>
 #include <utils/Trace.h>
+#include <cutils/properties.h>
 
 #include <ui/Fence.h>
 
@@ -33,6 +34,31 @@
 #include <private/gui/ComposerService.h>
 
 namespace android {
+
+//rk : for lcdc composer
+static int UseLcdcComposer = 0;
+static int ModFormatProg = 0;
+char* GetProgramName(char* buf, int size)
+{
+    char procName[64];
+    pid_t pid = getpid();
+
+    FILE* fp = NULL;
+    snprintf(procName, sizeof(procName), "/proc/%i/cmdline", pid);
+    fp = fopen(procName, "r");
+    if(fp)
+    {
+        fread(buf, 1, size, fp);
+        fclose(fp);
+        fp = NULL;
+    }
+    else
+    {
+        ALOGD("%s : %d : open file %s failed \n", __FUNCTION__, __LINE__, procName);
+    }
+
+    return buf;
+}
 
 SurfaceTextureClient::SurfaceTextureClient(
         const sp<ISurfaceTexture>& surfaceTexture)
@@ -91,6 +117,22 @@ void SurfaceTextureClient::init() {
     mTransformHint = 0;
     mConsumerRunningBehind = false;
     mConnectedToCpu = false;
+
+    //rk : for lcdc composer
+    char value[PROPERTY_VALUE_MAX];
+    property_get("ro.sf.lcdc_composer", value, "0");
+    UseLcdcComposer = atoi(value);
+    if(UseLcdcComposer) {
+        char exeName[64] = {0};
+        GetProgramName(exeName, 64 - 1);
+        if(0 == strcmp("com.android.browser", exeName)) {
+            ModFormatProg = 1;
+        } else if(0 == strcmp("com.android.launcher", exeName)) {
+            ModFormatProg = 2;
+        } else {
+            ModFormatProg = 0;
+        }
+    }
 }
 
 void SurfaceTextureClient::setISurfaceTexture(
@@ -201,6 +243,47 @@ int SurfaceTextureClient::dequeueBuffer(android_native_buffer_t** buffer,
     int buf = -1;
     int reqW = mReqWidth ? mReqWidth : mUserWidth;
     int reqH = mReqHeight ? mReqHeight : mUserHeight;
+
+    //rk : for lcdc composer
+    if(UseLcdcComposer) {
+        switch(ModFormatProg)
+        {
+        case 1: //com.android.browser
+            if(reqW==0 && reqH==0) {
+                int isBrowserActivity = 0;
+                mSurfaceTexture->query(1000, &isBrowserActivity);
+                if(isBrowserActivity) {
+                    static int MaxWidth = 0, MaxHeight = 0;
+                    if(mDefaultWidth > MaxWidth)    MaxWidth = mDefaultWidth;
+                    if(mDefaultHeight > MaxHeight)  MaxHeight = mDefaultHeight;
+                    if(mDefaultWidth==MaxWidth || mDefaultHeight==MaxHeight) {
+                        char value[PROPERTY_VALUE_MAX];
+                        property_get("sys.video.fullscreen", value, "0");
+                        if(atoi(value)==0) {
+                            if(mReqFormat == 1)  mReqFormat = 4;
+                        } else {
+                            if(mReqFormat == 4)  mReqFormat = 1;
+                        }
+                    }
+                }
+            }
+            break;
+        case 2: //com.android.launcher
+            {
+                char value[PROPERTY_VALUE_MAX];
+                property_get("sys.launcher.drawer", value, "0");
+                if(atoi(value)==0) {
+                    if(mReqFormat == 4)  mReqFormat = 1;
+                } else {
+                    if(mReqFormat == 1)  mReqFormat = 4;
+                }
+            }
+            break;
+        default:
+            break;
+        }
+    }
+
     sp<Fence> fence;
     status_t result = mSurfaceTexture->dequeueBuffer(&buf, fence, reqW, reqH,
             mReqFormat, mReqUsage);

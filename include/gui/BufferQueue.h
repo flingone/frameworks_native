@@ -281,6 +281,10 @@ public:
 
     // setTransformHint bakes in rotation to buffers so overlays can be used
     status_t setTransformHint(uint32_t hint);
+    uint64_t getFrameCounter();
+#ifdef TARGET_RK30
+    int getOneBufferState(uint32_t  addr);
+#endif
 
 private:
     // freeBufferLocked frees the resources (both GraphicBuffer and EGLImage)
@@ -537,6 +541,10 @@ private:
 
     // mTransformHint is used to optimize for screen rotations
     uint32_t mTransformHint;
+
+    // rk : mBufferChange is used to indicate the buffer have something change,
+    //      e.g format, size, usage and so on.
+    bool mBufferChange;
 };
 
 // ----------------------------------------------------------------------------

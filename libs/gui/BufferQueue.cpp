@@ -79,7 +79,8 @@ BufferQueue::BufferQueue(bool allowSynchronousMode,
     mBufferHasBeenQueued(false),
     mDefaultBufferFormat(PIXEL_FORMAT_RGBA_8888),
     mConsumerUsageBits(0),
-    mTransformHint(0)
+    mTransformHint(0),
+    mBufferChange(true)
 {
     // Choose a name using the PID and a process-unique ID.
     mConsumerName = String8::format("unnamed-%d-%d", getpid(), createProcessUniqueId());
@@ -222,6 +223,16 @@ int BufferQueue::query(int what, int* outValue)
     case NATIVE_WINDOW_CONSUMER_RUNNING_BEHIND:
         value = (mQueue.size() >= 2);
         break;
+    case 1000:  // rk : for lcdc composer, is BrowserActivity ?
+        value = strcmp(mConsumerName.string(), "com.android.browser/com.android.browser.BrowserActivity") ? 0 : 1;
+        break;
+    case 1001:  // rk : for lcdc composer, get the realy buffer count.
+        value = mOverrideMaxBufferCount ? mOverrideMaxBufferCount : mDefaultMaxBufferCount;
+        break;
+    case 1002:  // rk : for lcdc composer, get the buffer change flag.
+        value = (int)mBufferChange;
+        mBufferChange = false;
+        break;
     default:
         return BAD_VALUE;
     }
@@ -272,9 +283,12 @@ status_t BufferQueue::dequeueBuffer(int *outBuf, sp<Fence>& outFence,
     { // Scope for the lock
         Mutex::Autolock lock(mMutex);
 
-        if (format == 0) {
+        const bool updateFormat = (format != 0);
+        if (!updateFormat) {
+            // keep the current (or default) format
             format = mDefaultBufferFormat;
         }
+
         // turn on usage bits the consumer requested
         usage |= mConsumerUsageBits;
 
@@ -392,6 +406,12 @@ status_t BufferQueue::dequeueBuffer(int *outBuf, sp<Fence>& outFence,
             mSlots[buf].mEglDisplay = EGL_NO_DISPLAY;
 
             returnFlags |= ISurfaceTexture::BUFFER_NEEDS_REALLOCATION;
+
+            mBufferChange = true;
+        }
+
+        if (updateFormat) {
+            mDefaultBufferFormat = format;
         }
 
         dpy = mSlots[buf].mEglDisplay;
@@ -448,7 +468,16 @@ status_t BufferQueue::setSynchronousMode(bool enabled) {
     ATRACE_CALL();
     ST_LOGV("setSynchronousMode: enabled=%d", enabled);
     Mutex::Autolock lock(mMutex);
-
+/*	
+	if(mConsumerUsageBits == GRALLOC_USAGE_HW_VIDEO_ENCODER |
+            GRALLOC_USAGE_HW_TEXTURE)
+	{
+  	  enabled = false;
+	ALOGD("enable %d GRALLOC_USAGE_HW_VIDEO_ENCODER %x  GRALLOC_USAGE_HW_TEXTURE %x mConsumerUsageBits %x"
+		,enabled,GRALLOC_USAGE_HW_VIDEO_ENCODER,
+            GRALLOC_USAGE_HW_TEXTURE,mConsumerUsageBits);
+	}
+*/
     if (mAbandoned) {
         ST_LOGE("setSynchronousMode: SurfaceTexture has been abandoned!");
         return NO_INIT;
@@ -589,6 +618,30 @@ status_t BufferQueue::queueBuffer(int buf,
     return OK;
 }
 
+#ifdef TARGET_RK30
+#ifdef TARGET_BOARD_PLATFORM_RK30XXB
+#include <hardware/hal_public.h>
+#define private_handle_t IMG_native_handle_t
+#else
+#include "../../../../hardware/rk29/libgralloc_ump/gralloc_priv.h"
+#endif
+int BufferQueue::getOneBufferState(uint32_t  addr)
+{
+    for (int i=0; i<NUM_BUFFER_SLOTS; i++)
+    {
+#ifndef TARGET_BOARD_PLATFORM_RK30XXB
+	if (mSlots[i].mGraphicBuffer!=0 && ((struct private_handle_t*)mSlots[i].mGraphicBuffer->handle)->base==(int)addr)
+#else
+	if (mSlots[i].mGraphicBuffer!=0 && ((struct private_handle_t*)mSlots[i].mGraphicBuffer->handle)->iBase==(int)addr)
+#endif
+	{
+           return mSlots[i].mBufferState;
+	}
+    }
+    return 0;
+}
+
+#endif
 void BufferQueue::cancelBuffer(int buf, sp<Fence> fence) {
     ATRACE_CALL();
     ST_LOGV("cancelBuffer: slot=%d", buf);
@@ -1022,8 +1075,13 @@ int BufferQueue::getMinMaxBufferCountLocked() const {
 }
 
 int BufferQueue::getMinUndequeuedBufferCountLocked() const {
+    if (mConsumerUsageBits & GRALLOC_USAGE_HW_FB) {
+        return 0;
+    }
+
     return mSynchronousMode ? mMaxAcquiredBufferCount :
             mMaxAcquiredBufferCount + 1;
+
 }
 
 int BufferQueue::getMaxBufferCountLocked() const {

@@ -39,6 +39,21 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_MODULE:= libgui
 
+
+ifeq ($(strip $(TARGET_BOARD_HARDWARE)),rk30board)
+    LOCAL_C_INCLUDES += hardware/rk29/libgralloc_ump/ump/include
+    LOCAL_CFLAGS += -DTARGET_RK30
+  ifeq ($(strip $(TARGET_BOARD_PLATFORM)),rk30xxb)
+    LOCAL_CFLAGS += -DTARGET_BOARD_PLATFORM_RK30XXB
+  endif
+endif
+
+ifeq ($(strip $(TARGET_BOARD_HARDWARE)),rk2928board)
+    LOCAL_C_INCLUDES += hardware/rk29/libgralloc_ump/ump/include
+    LOCAL_CFLAGS += -DTARGET_RK30
+endif
+
+
 ifeq ($(TARGET_BOARD_PLATFORM), omap4)
 	LOCAL_CFLAGS += -DUSE_FENCE_SYNC
 endif

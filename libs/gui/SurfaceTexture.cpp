@@ -38,6 +38,7 @@
 #include <utils/Log.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
+#include <cutils/properties.h>
 
 // This compile option makes SurfaceTexture use the
 // EGL_ANDROID_native_fence_sync extension to create Android native fences to
@@ -112,6 +113,7 @@ static float mtxRot270[16] = {
 
 static void mtxMul(float out[16], const float a[16], const float b[16]);
 
+static int UseLcdcComposer = 0;
 
 SurfaceTexture::SurfaceTexture(GLuint tex, bool allowSynchronousMode,
         GLenum texTarget, bool useFenceSync, const sp<BufferQueue> &bufferQueue) :
@@ -129,6 +131,7 @@ SurfaceTexture::SurfaceTexture(GLuint tex, bool allowSynchronousMode,
     mEglDisplay(EGL_NO_DISPLAY),
     mEglContext(EGL_NO_CONTEXT),
     mCurrentTexture(BufferQueue::INVALID_BUFFER_SLOT),
+    mCurrentTextureOld(BufferQueue::INVALID_BUFFER_SLOT),
     mAttached(true)
 {
     ST_LOGV("SurfaceTexture");
@@ -137,6 +140,11 @@ SurfaceTexture::SurfaceTexture(GLuint tex, bool allowSynchronousMode,
             sizeof(mCurrentTransformMatrix));
 
     mBufferQueue->setConsumerUsageBits(DEFAULT_USAGE_FLAGS);
+
+    //rk : for lcdc composer
+    char value[PROPERTY_VALUE_MAX];
+    property_get("ro.sf.lcdc_composer", value, "0");
+    UseLcdcComposer = atoi(value);
 }
 
 status_t SurfaceTexture::setDefaultMaxBufferCount(int bufferCount) {
@@ -279,14 +287,22 @@ status_t SurfaceTexture::updateTexImage(BufferRejecter* rejecter, bool skipSync)
                 mCurrentTextureBuf != NULL ? mCurrentTextureBuf->handle : 0,
                 buf, mSlots[buf].mGraphicBuffer->handle);
 
-        // release old buffer
-        if (mCurrentTexture != BufferQueue::INVALID_BUFFER_SLOT) {
-            status_t status = releaseBufferLocked(mCurrentTexture, dpy,
-                    mEglSlots[mCurrentTexture].mEglFence);
-            if (status != NO_ERROR && status != BufferQueue::STALE_BUFFER_SLOT) {
-                ST_LOGE("updateTexImage: failed to release buffer: %s (%d)",
-                       strerror(-status), status);
-                err = status;
+        //rk : for lcdc composer
+        if(UseLcdcComposer && !strstr(mName.string(), "unnamed"))
+        {
+            mCurrentTextureOld = mCurrentTexture;
+        }
+        else
+        {
+            // release old buffer
+            if (mCurrentTexture != BufferQueue::INVALID_BUFFER_SLOT) {
+                status_t status = releaseBufferLocked(mCurrentTexture, dpy,
+                        mEglSlots[mCurrentTexture].mEglFence);
+                if (status != NO_ERROR && status != BufferQueue::STALE_BUFFER_SLOT) {
+                    ST_LOGE("updateTexImage: failed to release buffer: %s (%d)",
+                           strerror(-status), status);
+                    err = status;
+                }
             }
         }
 
@@ -319,6 +335,27 @@ status_t SurfaceTexture::updateTexImage(BufferRejecter* rejecter, bool skipSync)
         return OK;
     }
 
+    return err;
+}
+
+//rk : for lcdc composer
+status_t SurfaceTexture::ReleaseOldBuffer()
+{
+    status_t err = NO_ERROR;
+    Mutex::Autolock lock(mMutex);
+
+    if (mCurrentTextureOld != BufferQueue::INVALID_BUFFER_SLOT) {
+        EGLDisplay dpy = eglGetCurrentDisplay();
+        status_t status = releaseBufferLocked(mCurrentTextureOld, dpy,
+                mEglSlots[mCurrentTextureOld].mEglFence);
+        if (status != NO_ERROR && status != BufferQueue::STALE_BUFFER_SLOT) {
+            ST_LOGE("updateTexImage: failed to release buffer: %s (%d)",
+                   strerror(-status), status);
+            err = status;
+        }
+
+        mCurrentTextureOld = BufferQueue::INVALID_BUFFER_SLOT;
+    }
     return err;
 }
 
@@ -697,6 +734,12 @@ sp<GraphicBuffer> SurfaceTexture::getCurrentBuffer() const {
     Mutex::Autolock lock(mMutex);
     return mCurrentTextureBuf;
 }
+#ifdef TARGET_RK30
+int SurfaceTexture::getBufferState(uint32_t  addr)
+{
+   return mBufferQueue->getOneBufferState(addr);
+}
+#endif
 
 Rect SurfaceTexture::getCurrentCrop() const {
     Mutex::Autolock lock(mMutex);
