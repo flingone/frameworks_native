@@ -48,6 +48,12 @@ struct HDCPModule {
         HDCP_UNKNOWN_ERROR,
     };
 
+	enum HDCP_ROLE {
+		HDCP_TRANSMITTER,
+		HDCP_RECEIVER,
+		HDCP_REPEATER,
+	};
+
     // Module can call the notification function to signal completion/failure
     // of asynchronous operations (such as initialization) or out of band
     // events.
@@ -74,6 +80,9 @@ struct HDCPModule {
             const void *inData, size_t size, uint32_t streamCTR,
             uint64_t *outInputCTR, void *outData) = 0;
 
+	virtual status_t decrypt(
+        	const uint8_t *HDCP_private_data, size_t HDCP_private_data_len, const void *inData, size_t dataLen, void *outData) = 0;
+
 private:
     HDCPModule(const HDCPModule &);
     HDCPModule &operator=(const HDCPModule &);
@@ -87,7 +96,7 @@ private:
 // mediaserver process.
 extern "C" {
     extern android::HDCPModule *createHDCPModule(
-            void *cookie, android::HDCPModule::ObserverFunc);
+            void *cookie, android::HDCPModule::HDCP_ROLE hdcp, android::HDCPModule::ObserverFunc);
 }
 
 #endif  // HDCP_API_H_
