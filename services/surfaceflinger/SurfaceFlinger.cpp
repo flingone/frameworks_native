@@ -300,6 +300,13 @@ void SurfaceFlinger::bootFinished()
     // formerly we would just kill the process, but we now ask it to exit so it
     // can choose where to stop the animation.
     property_set("service.bootanim.exit", "1");
+/*$_rbox_$_modify_$aisx_for speeding up booting.*/
+	int mret = -1;
+	mret = open("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor",O_RDWR);
+	const char* cpumode = "interactive\n";  
+	write(mret,cpumode,strlen(cpumode));
+	close(mret);
+/*$_rbox_$_modify_end */
 }
 
 void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
@@ -623,6 +630,21 @@ void SurfaceFlinger::init() {
     // set initial conditions (e.g. unblank default device)
     initializeDisplays();
 
+	//$_rbox_$_modify_$_zhengyang for box
+	// get fake ui size when enable overlay
+	char property[PROPERTY_VALUE_MAX];
+	if (property_get("video.use.overlay", property, "0") && atoi(property) > 0) {
+		if (property_get("sys.ui.fakesize", property, NULL) > 0) {
+			sscanf(property, "%dx%d", &mFakeWidth, &mFakeHeight);
+			ALOGD("mFakeWidth %d mFakeHeight %d", mFakeWidth, mFakeHeight);
+		}
+	}
+	else {
+		mFakeWidth = 0;
+		mFakeHeight = 0;
+	}
+	//$_rbox_$_modify_$_zhengyang for box end
+	
     // start boot animation
     startBootAnim();
 }
@@ -714,9 +736,15 @@ status_t SurfaceFlinger::getDisplayInfo(const sp<IBinder>& display, DisplayInfo*
         info->density = TV_DENSITY / 160.0f;
         info->orientation = 0;
     }
-
-    info->w = hwc.getWidth(type);
-    info->h = hwc.getHeight(type);
+    //$_rbox_$_modify_$_zhengyang for box
+	if (type == DisplayDevice::DISPLAY_PRIMARY && mFakeWidth && mFakeHeight) {
+	    info->w = mFakeWidth;
+	    info->h = mFakeHeight;
+	} else {
+		info->w = hwc.getWidth(type);
+	    info->h = hwc.getHeight(type);
+	}
+	//$_rbox_$_modify_$_zhengyang for box end
     info->xdpi = xdpi;
     info->ydpi = ydpi;
     info->fps = float(1e9 / hwc.getRefreshPeriod(type));
@@ -1708,6 +1736,28 @@ void SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& hw, const 
 
     bool hasGlesComposition = hwc.hasGlesComposition(id);
     if (hasGlesComposition) {
+    	//$_rbox_$_modify_$_zhengyang for box
+    	if(id == 0 && mFakeWidth && mFakeHeight) {
+    		char property[PROPERTY_VALUE_MAX];
+			int overscan_left = 100, overscan_right = 100, overscan_top = 100, overscan_bottom = 100;
+			if (property_get("persist.sys.overscan.main", property, NULL) > 0)
+				sscanf(property, "overscan %d,%d,%d,%d", &overscan_left, &overscan_top, &overscan_right, &overscan_bottom);
+			uint32_t xres, yres;
+			FILE* fd = fopen("/sys/class/graphics/fb0/screen_info", "r");
+			memset(property, 0, PROPERTY_VALUE_MAX);
+			fgets(property, PROPERTY_VALUE_MAX, fd);
+			sscanf(property, "xres:%d", &xres);
+			memset(property, 0, PROPERTY_VALUE_MAX);
+			fgets(property, PROPERTY_VALUE_MAX, fd);
+			sscanf(property, "yres:%d", &yres);
+			fclose(fd);
+			size_t xpos = xres * (100 - overscan_left) / 200;
+			size_t ypos = yres * (100 - overscan_bottom) / 200;    
+
+			const sp<DisplayDevice>& hw1(mDisplays[0]);
+    		hw1->setProjection(0, Rect(mFakeWidth,mFakeHeight), Rect(xpos, ypos, xres - xpos, yres - ypos));
+    	}
+    	//$_rbox_$_modify_$_zhengyang for box end
         if (!hw->makeCurrent(mEGLDisplay, mEGLContext)) {
             ALOGW("DisplayDevice::makeCurrent failed. Aborting surface composition for display %s",
                   hw->getDisplayName().string());
@@ -2935,7 +2985,28 @@ void SurfaceFlinger::renderScreenImplLocked(
     engine.checkErrors();
 
     // set-up our viewport
-    engine.setViewportAndProjection(reqWidth, reqHeight, hw_w, hw_h, yswap);
+    //$_rbox_$_modify_$_zhengyang for box
+    if(mFakeWidth && mFakeHeight) {
+		char property[PROPERTY_VALUE_MAX];
+		int overscan_left = 100, overscan_right = 100, overscan_top = 100, overscan_bottom = 100;
+		if (property_get("persist.sys.overscan.main", property, NULL) > 0)
+			sscanf(property, "overscan %d,%d,%d,%d", &overscan_left, &overscan_top, &overscan_right, &overscan_bottom);
+		uint32_t xres, yres;
+		FILE* fd = fopen("/sys/class/graphics/fb0/screen_info", "r");
+		memset(property, 0, PROPERTY_VALUE_MAX);
+		fgets(property, PROPERTY_VALUE_MAX, fd);
+		sscanf(property, "xres:%d", &xres);
+		memset(property, 0, PROPERTY_VALUE_MAX);
+		fgets(property, PROPERTY_VALUE_MAX, fd);
+		sscanf(property, "yres:%d", &yres);
+		fclose(fd);
+		size_t xpos = xres * (100 - overscan_left) / 200;
+		size_t ypos = yres * (100 - overscan_top) / 200;    
+		engine.setViewportAndProjection(xpos, ypos, reqWidth, reqHeight, hw_w, hw_h, yswap);
+	}
+    else
+    	engine.setViewportAndProjection(reqWidth, reqHeight, hw_w, hw_h, yswap);
+    //$_rbox_$_modify_$_zhengyang for box end
     engine.disableTexturing();
 
     // redraw the screen entirely...
@@ -2983,7 +3054,25 @@ status_t SurfaceFlinger::captureScreenImplLocked(
 
     reqWidth  = (!reqWidth)  ? hw_w : reqWidth;
     reqHeight = (!reqHeight) ? hw_h : reqHeight;
-
+    //$_rbox_$_modify_$_zhengyang for box
+    if(mFakeWidth && mFakeHeight) {
+		char property[PROPERTY_VALUE_MAX];
+		int overscan_left = 100, overscan_right = 100, overscan_top = 100, overscan_bottom = 100;
+		if (property_get("persist.sys.overscan.main", property, NULL) > 0)
+			sscanf(property, "overscan %d,%d,%d,%d", &overscan_left, &overscan_top, &overscan_right, &overscan_bottom);
+		uint32_t xres, yres;
+		FILE* fd = fopen("/sys/class/graphics/fb0/screen_info", "r");
+		memset(property, 0, PROPERTY_VALUE_MAX);
+		fgets(property, PROPERTY_VALUE_MAX, fd);
+		sscanf(property, "xres:%d", &xres);
+		memset(property, 0, PROPERTY_VALUE_MAX);
+		fgets(property, PROPERTY_VALUE_MAX, fd);
+		sscanf(property, "yres:%d", &yres);
+		fclose(fd);
+		reqWidth = xres * (overscan_left + overscan_right) / 200;
+		reqHeight = yres * (overscan_bottom + overscan_top) / 200;
+	}
+	//$_rbox_$_modify_$_zhengyang for box end
     // create a surface (because we're a producer, and we need to
     // dequeue/queue a buffer)
     sp<Surface> sur = new Surface(producer, false);
