@@ -478,6 +478,11 @@ private:
 
     Daltonizer mDaltonizer;
     bool mDaltonize;
+    
+    //$_rbox_$_modify_$_zhengyang for box
+    int mFakeWidth;
+    int mFakeHeight;
+    //$_rbox_$_modify_$_zhengyang for box end
 };
 
 }; // namespace android

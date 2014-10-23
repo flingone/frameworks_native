@@ -50,6 +50,9 @@ protected:
 
     virtual void dump(String8& result);
     virtual void setViewportAndProjection(size_t vpw, size_t vph, size_t w, size_t h, bool yswap);
+    //$_rbox_$_modify_$_zhengyang for box
+    virtual void setViewportAndProjection(size_t x, size_t y, size_t vpw, size_t vph, size_t w, size_t h, bool yswap);
+    //$_rbox_$_modify_$_zhengyang for box end
     virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque, int alpha);
     virtual void setupDimLayerBlending(int alpha);
     virtual void setupLayerTexturing(const Texture& texture);

@@ -81,7 +81,18 @@ void GLES11RenderEngine::setViewportAndProjection(
     else        glOrthof(0, w, 0, h, 0, 1);
     glMatrixMode(GL_MODELVIEW);
 }
-
+//$_rbox_$_modify_$_zhengyang for box
+void GLES11RenderEngine::setViewportAndProjection(
+        size_t x, size_t y, size_t vpw, size_t vph, size_t w, size_t h, bool yswap) {
+    glViewport(0, 0, vpw, vph);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    // put the origin in the left-bottom corner
+    if (yswap)  glOrthof(0, w, h, 0, 0, 1);
+    else        glOrthof(0, w, 0, h, 0, 1);
+    glMatrixMode(GL_MODELVIEW);
+}
+//$_rbox_$_modify_$_zhengyang for box end
 void GLES11RenderEngine::setupLayerBlending(
     bool premultipliedAlpha, bool opaque, int alpha) {
     GLenum combineRGB;

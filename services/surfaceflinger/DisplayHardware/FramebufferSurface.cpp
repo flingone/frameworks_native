@@ -35,9 +35,11 @@
 
 #include "FramebufferSurface.h"
 #include "HWComposer.h"
+#include "cutils/properties.h"
 
 #ifndef NUM_FRAMEBUFFER_SURFACE_BUFFERS
-#define NUM_FRAMEBUFFER_SURFACE_BUFFERS (2)
+#define NUM_FRAMEBUFFER_SURFACE_BUFFERS     (3)
+#define NUM_FRAMEBUFFER_SURFACE_BUFFERS_TWO (2)
 #endif
 
 // ----------------------------------------------------------------------------
@@ -58,6 +60,7 @@ FramebufferSurface::FramebufferSurface(HWComposer& hwc, int disp,
     mCurrentBuffer(0),
     mHwc(hwc)
 {
+    char is_low_ram[256];
     mName = "FramebufferSurface";
     mConsumer->setConsumerName(mName);
     mConsumer->setConsumerUsageBits(GRALLOC_USAGE_HW_FB |
@@ -65,7 +68,16 @@ FramebufferSurface::FramebufferSurface(HWComposer& hwc, int disp,
                                        GRALLOC_USAGE_HW_COMPOSER);
     mConsumer->setDefaultBufferFormat(mHwc.getFormat(disp));
     mConsumer->setDefaultBufferSize(mHwc.getWidth(disp),  mHwc.getHeight(disp));
+    property_get("ro.config.low_ram",is_low_ram,"");
+
+    if (strcmp(is_low_ram,"true") != 0){ 
+        ALOGD("not low ram device, so set two three buffer");
     mConsumer->setDefaultMaxBufferCount(NUM_FRAMEBUFFER_SURFACE_BUFFERS);
+    }
+    else{
+        ALOGD("low ram device, so set two fb buffer");
+        mConsumer->setDefaultMaxBufferCount(NUM_FRAMEBUFFER_SURFACE_BUFFERS_TWO);
+    }
 }
 
 status_t FramebufferSurface::beginFrame() {

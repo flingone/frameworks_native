@@ -88,7 +88,19 @@ void GLES20RenderEngine::setViewportAndProjection(
     mVpWidth = vpw;
     mVpHeight = vph;
 }
+//$_rbox_$_modify_$_zhengyang for box
+void GLES20RenderEngine::setViewportAndProjection(
+        size_t x, size_t y, size_t vpw, size_t vph, size_t w, size_t h, bool yswap) {
+    mat4 m;
+    if (yswap)  m = mat4::ortho(x, vpw + x, h - y, h - vph - y, 0, 1);
+    else        m = mat4::ortho(x, vpw + x, h - vph - y, h - y, 0, 1);
 
+    glViewport(0, 0, vpw, vph);
+    mState.setProjectionMatrix(m);
+    mVpWidth = vpw;
+    mVpHeight = vph;
+}
+//$_rbox_$_modify_$_zhengyang for box end
 void GLES20RenderEngine::setupLayerBlending(
     bool premultipliedAlpha, bool opaque, int alpha) {
 
