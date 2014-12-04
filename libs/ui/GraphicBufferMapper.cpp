@@ -110,6 +110,11 @@ status_t GraphicBufferMapper::lockYCbCr(buffer_handle_t handle,
     ATRACE_CALL();
     status_t err;
 
+    if (! mAllocMod->lock_ycbcr) {
+        ALOGE("vender do not implement this function, ignore.");
+        return -EINVAL;
+    }
+
     err = mAllocMod->lock_ycbcr(mAllocMod, handle, usage,
             bounds.left, bounds.top, bounds.width(), bounds.height(),
             ycbcr);
